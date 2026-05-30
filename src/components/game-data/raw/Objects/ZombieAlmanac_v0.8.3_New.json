@@ -1,0 +1,198 @@
+{
+	"#comment": "Zombie Almanac - New v0.8.3 Zombies",
+	"version": 1,
+	"objects": [
+		{
+			"aliases": [
+				"arbiter_x"
+			],
+			"objclass": "ZombieAlmanacProperties",
+			"objdata": {
+				"Elements": [
+					{
+						"TYPE": "TOUGHNESS",
+						"SORT": {
+							"en": "Protected",
+							"zh": "加强"
+						},
+						"PROGRESS": 0.65
+					},
+					{
+						"TYPE": "SPEED",
+						"SORT": {
+							"en": "Speedy",
+							"zh": "快速"
+						},
+						"PROGRESS": 0.75
+					}
+				],
+				"Introduction": {
+					"en": "Arbiter-X is an advanced zombie equipped with decision-making systems, making it unpredictable and highly dangerous.",
+					"zh": "仲裁者-X 配备了先进的决策系统，使其行动难以预测且极其危险。"
+				},
+				"Special": [
+					{
+						"NAME": {
+							"en": "Intelligence",
+							"zh": "智能"
+						},
+						"DESCRIPTION": {
+							"en": "adapts to defensive patterns",
+							"zh": "适应防御策略"
+						}
+					},
+					{
+						"NAME": {
+							"en": "Special",
+							"zh": "特点"
+						},
+						"DESCRIPTION": {
+							"en": "changes behavior based on plant positions",
+							"zh": "根据植物位置改变行为"
+						}
+					}
+				],
+				"Chat": {
+					"en": "Arbiter-X processes tactical data at inhuman speeds. Some say it's too intelligent for its own good, but it doesn't care what anyone thinks.",
+					"zh": "仲裁者-X 能以超人的速度处理战术数据。有人说它聪明得离谱，但它根本不在乎别人的想法。"
+				},
+				"DisplayOffset": {
+					"x": 0,
+					"y": 0
+				},
+				"DisplayScale": {
+					"x": 1,
+					"y": 1
+				}
+			}
+		},
+		{
+			"aliases": [
+				"skunkpunk_zombie"
+			],
+			"objclass": "ZombieAlmanacProperties",
+			"objdata": {
+				"Elements": [
+					{
+						"TYPE": "TOUGHNESS",
+						"SORT": {
+							"en": "Average",
+							"zh": "一般"
+						},
+						"PROGRESS": 0.35
+					},
+					{
+						"TYPE": "SPEED",
+						"SORT": {
+							"en": "Hungry",
+							"zh": "饥渴"
+						},
+						"PROGRESS": 0.7
+					}
+				],
+				"Introduction": {
+					"en": "Skunk Punk Zombie brings rebellious attitude and noxious fumes to the battlefield, disrupting your plant formations.",
+					"zh": "朋克臭鼬僵尸以其叛逆态度和刺鼻气味上阵，破坏你的植物阵容。"
+				},
+				"Special": [
+					{
+						"NAME": {
+							"en": "Stench",
+							"zh": "臭气"
+						},
+						"DESCRIPTION": {
+							"en": "emits toxic fumes that damage plants",
+							"zh": "散发有毒气体伤害植物"
+						}
+					},
+					{
+						"NAME": {
+							"en": "Special",
+							"zh": "特点"
+						},
+						"DESCRIPTION": {
+							"en": "weakens plant defenses when nearby",
+							"zh": "靠近时削弱植物防御"
+						}
+					}
+				],
+				"Chat": {
+					"en": "Skunk Punk doesn't follow anyone's rules but his own. He's here to make a stink, literally and figuratively.",
+					"zh": "朋克臭鼬只遵循自己的规则。他来这里就是为了制造麻烦，字面意思和引申意思都是。"
+				},
+				"DisplayOffset": {
+					"x": 10,
+					"y": 0
+				},
+				"DisplayScale": {
+					"x": 1,
+					"y": 1
+				}
+			}
+		},
+		{
+			"aliases": [
+				"zombot_drone_engineer"
+			],
+			"objclass": "ZombieAlmanacProperties",
+			"objdata": {
+				"Elements": [
+					{
+						"TYPE": "TOUGHNESS",
+						"SORT": {
+							"en": "Hardened",
+							"zh": "强化"
+						},
+						"PROGRESS": 0.7
+					},
+					{
+						"TYPE": "SPEED",
+						"SORT": {
+							"en": "Basic",
+							"zh": "普通"
+						},
+						"PROGRESS": 0.5
+					}
+				],
+				"Introduction": {
+					"en": "Zombot Drone Engineer commands mechanical swarms from above, raining destruction upon your defenses with robotic precision.",
+					"zh": "僵尸无人机工程师从空中指挥机械群体，用机器人般的精准摧毁你的防线。"
+				},
+				"Special": [
+					{
+						"NAME": {
+							"en": "Drone Control",
+							"zh": "无人机控制"
+						},
+						"DESCRIPTION": {
+							"en": "deploys drone swarms to attack",
+							"zh": "部署无人机群发动攻击"
+						}
+					},
+					{
+						"NAME": {
+							"en": "Air Support",
+							"zh": "空中支持"
+						},
+						"DESCRIPTION": {
+							"en": "drones can bypass ground defenses",
+							"zh": "无人机可绕过地面防御"
+						}
+					}
+				],
+				"Chat": {
+					"en": "The Zombot Drone Engineer is a master of air combat. With his mechanical swarms, he turns the sky itself into a weapon.",
+					"zh": "僵尸无人机工程师是空战大师。凭借他的机械群体，他把天空本身变成了武器。"
+				},
+				"DisplayOffset": {
+					"x": 30,
+					"y": -40
+				},
+				"DisplayScale": {
+					"x": 1,
+					"y": 1
+				}
+			}
+		}
+	]
+}
