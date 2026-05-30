@@ -1,0 +1,49 @@
+{
+    "Name": "PvZ2_Prerelease_AF_P2",
+    "Version": "v0.8.3",
+    "InsideVersion": "0.8.3",
+    "Updates": [
+        {
+            "en": "Added Boardbean, Loquat and Lantern Cherry.",
+            "zh": "加入豆板、枇杷和灯笼樱桃。"
+        },
+        {
+            "en": "Added Arbiter-X, Skunk Punk Zombie and Zombot Drone Engineer.",
+            "zh": "加入仲裁者-X、臭鼬朋克僵尸和僵尸无人机工程师。"
+        },
+        {
+            "en": "Added Aerial Fortress Levels 17-20.",
+            "zh": "加入云端堡垒关卡 17-20。"
+        },
+        {
+            "en": "Added PvZ1 Minigames.",
+            "zh": "加入植物大战僵尸1迷你游戏。"
+        }
+    ],
+    "NewFeatures": [
+        "加入豆板、枇杷和灯笼樱桃。",
+        "加入仲裁者-X、臭鼬朋克僵尸和僵尸无人机工程师。",
+        "加入云端堡垒关卡 17-20。",
+        "加入植物大战僵尸1迷你游戏。"
+    ],
+    "EnNewFeatures": [
+        "Added Boardbean, Loquat and Lantern Cherry.",
+        "Added Arbiter-X, Skunk Punk Zombie and Zombot Drone Engineer.",
+        "Added Aerial Fortress Levels 17-20.",
+        "Added PvZ1 Minigames."
+    ],
+    "Download": {
+        "Quark": "https://pan.quark.cn/s/0138eb6aa77c",
+        "QuarkZip": "https://pan.quark.cn/s/256ad8c28e7f",
+        "Baidu": "https://pan.baidu.com/s/1G7dSIGNEChIKFLH1OOWYSw?pwd=pvz2",
+        "Pan123": "https://www.123684.com/s/xUemTd-n5LCh",
+        "Github": "https://github.com/Gzh0821/pvzg_site/releases/tag/0.8.3",
+        "Storage": "https://storage.pvzge.com/pvzge-0.8.3.zip",
+        "TmpLink": "",
+        "Mega": "",
+        "Feijipan": ""
+    },
+    "MacOSDownload": {
+        "Storage": "https://storage.pvzge.com/macos/pvzge-macos-0.8.3.zip"
+    }
+}
