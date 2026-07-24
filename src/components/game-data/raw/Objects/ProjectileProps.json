@@ -79,12 +79,64 @@
 			],
 			"objclass": "ProjectileProperties",
 			"objdata": {
+				"PositiveCharge": 0,
+				"NegativeCharge": 0,
 				"Damage": 30,
 				"Size": {
 					"w": 4,
 					"h": 4
 				},
 				"DamageToShip": 30
+			}
+		},
+		{
+			"aliases": [
+				"darkmatter"
+			],
+			"objclass": "ProjectileProperties",
+			"objdata": {
+				"IgnoredBy3SectionStaff": true,
+				"CannotBeReversedByJester": true,
+				"Damage": 40,
+				"SplashDamage": [
+					{
+						"Damage": 80,
+						"Range": {
+							"w": 3,
+							"h": 3
+						}
+					}
+				],
+				"Size": {
+					"w": 30,
+					"h": 30
+				}
+			}
+		},
+		{
+			"aliases": [
+				"darkmatter_shadow"
+			],
+			"objclass": "ProjectileProperties",
+			"objdata": {
+				"IgnoredBy3SectionStaff": true,
+				"CannotBeReversedByJester": true,
+				"Damage": 40,
+				"DarkMatterDuration": 10,
+				"SplashDamage": [
+					{
+						"DarkMatterDuration": 10,
+						"Damage": 80,
+						"Range": {
+							"w": 3,
+							"h": 3
+						}
+					}
+				],
+				"Size": {
+					"w": 30,
+					"h": 30
+				}
 			}
 		},
 		{
@@ -957,7 +1009,7 @@
 					"h": 16
 				},
 				"PoisonStacked": {
-					"DPS": 5,
+					"DPS": 10,
 					"Duration": 5
 				},
 				"ZombieSpeedStacked": {
@@ -979,7 +1031,7 @@
 					"h": 16
 				},
 				"PoisonStacked": {
-					"DPS": 15,
+					"DPS": 30,
 					"Duration": 5
 				},
 				"ZombieSpeedStacked": {
@@ -1001,7 +1053,7 @@
 					"h": 16
 				},
 				"PoisonStacked": {
-					"DPS": 25,
+					"DPS": 50,
 					"Duration": 5
 				},
 				"ZombieSpeedStacked": {

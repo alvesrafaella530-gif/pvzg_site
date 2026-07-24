@@ -12,23 +12,12 @@ category:
 ---
 
 <script setup>
-import axios from 'axios';
-import { ref, onBeforeMount, onMounted } from 'vue'
+import { onMounted } from 'vue';
+import DownloadPanel from '@source/components/download-page/DownloadPanel.vue';
 
-const gameInfoData = ref(null);
-const gpNextInfoData = ref(null);
-
-onBeforeMount(() => {
-  axios.get('/jsons/gameinfo.json').then(res => {
-    gameInfoData.value = res.data;
-  });
-  axios.get('/jsons/gp-next-info.json').then(res => {
-    gpNextInfoData.value = res.data;
-  });
-})
 onMounted(() => {
   (window.adsbygoogle = window.adsbygoogle || []).push({});
-})
+});
 </script>
 
 > [!important]
@@ -46,34 +35,6 @@ onMounted(() => {
 >
 > Для получения подробной информации о вышеуказанном соглашении и заявлении, пожалуйста, ознакомьтесь с [этим](../instructions/)
 
-<span v-if="gameInfoData?.Version">Текущая последняя версия игры {{ gameInfoData.Version }}</span>
-
-<span v-if="gameInfoData?.Name">Название этой версии игры: {{ gameInfoData.Name }}</span>
-
-<span v-if="gameInfoData?.Hash?.MD5">MD5: <code>{{ gameInfoData?.Hash?.MD5 }}</code></span>
-
-<span v-if="gameInfoData?.Hash?.SHA256">SHA256: <code>{{ gameInfoData?.Hash?.SHA256 }}</code></span>
-
-<span v-if="gpNextInfoData?.version">Последняя версия инструмента GP-Next {{ gpNextInfoData.version }}</span>
-
-## Что сделать после скачивания
-
-- Решение частых проблем: [FAQ](../guide/FAQ.md)
-- Системные требования и настройки: [Рекомендуемая конфигурация](../guide/requirement.md)
-- Поиск ID и CodeName растений/зомби: [Онлайн-альманах](../almanac/)
-- Руководство по патчам и локализации: [Гайд по MOD](../guide/mod/)
-- Официальные и пользовательские уровни: [Creator's Garden](../creator-garden/)
-
-## Журнал обновлений
-
-<template v-if="gameInfoData?.EnNewFeatures">
-
-- <li v-for="(item, index) in gameInfoData.EnNewFeatures" :key="index">{{ item }}</li>
-
-</template>
-
-<template v-else>Временно недоступно</template>
-
 <ins class="adsbygoogle"
      style="display:block"
      data-ad-client="ca-pub-2336226859954206"
@@ -82,76 +43,12 @@ onMounted(() => {
      data-full-width-responsive="true">
 </ins>
 
-## ::brands:windows:: Платформа Windows
+<DownloadPanel locale="ru" />
 
-<template v-if="gameInfoData?.Download.Github">
+## Что сделать после скачивания
 
-### Github ::brands:github::
-
-Ссылка для скачивания: <a :href="gameInfoData.Download.Github" target="_blank">нажмите чтобы открыть</a>
-
-</template>
-
-<template v-if="gameInfoData?.Download.Storage">
-
-### Локальная загрузка ::cloud-arrow-down::
-
-Ссылка для скачивания: <a :href="gameInfoData.Download.Storage" target="_blank">нажмите чтобы открыть</a>
-
-</template>
-
-<template v-if="gameInfoData?.Download.Baidu">
-
-### Baidu Netdisk ::cloud::
-
-Ссылка для скачивания: <a :href="gameInfoData.Download.Baidu" target="_blank">нажмите чтобы открыть</a>
-
-</template>
-
-<template v-if="gameInfoData?.Download.Pan123">
-
-### 123 Pan ::cloud::
-
-Ссылка для скачивания: <a :href="gameInfoData.Download.Pan123" target="_blank">нажмите чтобы открыть</a>
-
-</template>
-
-<template v-if="gameInfoData?.Download.Quark">
-
-### Quark Netdisk ::cloud::
-
-Ссылка для скачивания: <a :href="gameInfoData.Download.Quark" target="_blank">нажмите чтобы открыть</a>
-
-</template>
-
-## ::brands:apple:: Платформа macOS
-
-> [!warning]
-> Эта версия поддерживает только устройства Apple Silicon (arm64) и требует macOS 11.0 или новее. Если macOS показывает сообщение "XXX повреждено и не может быть открыто. Переместите его в Корзину.", выполните следующие шаги:
->
-> 1. Сначала введите в Терминале (пока не выполняйте): <code>sudo xattr -r -d com.apple.quarantine </code>
-> 2. Перетащите приложение игры в окно Терминала, чтобы путь подставился автоматически.
-> 3. Проверьте путь и нажмите Enter для выполнения.
->
-> Если не помогло, разрешите запуск в "Системные настройки > Конфиденциальность и безопасность" и повторите попытку.
-
-<template v-if="gameInfoData?.MacOSDownload?.Storage">
-
-### Локальная загрузка ::cloud-arrow-down::
-
-Ссылка для скачивания: <a :href="gameInfoData.MacOSDownload.Storage" target="_blank">нажмите чтобы открыть</a>
-
-</template>
-
-## ::brands:linux:: Linux/Другие платформы
-
-> [!info]
-> Для игры на Linux и других системах с архитектурой x86_64 (amd64) можно использовать образы Docker для локального развертывания веб-версии.
-
-### Docker Hub ::brands:docker::
-
-Адрес образа: <a href="https://hub.docker.com/r/gaozih/pvzge" target="_blank">нажмите для входа</a>
-
-## ::clock-rotate-left:: Исторические версии/Файлы ресурсов
-
-Все исторические версии и файлы ресурсов `JSON` можно загрузить с [GE Drive](https://drive.pvzge.com/)
+- Решение частых проблем: [FAQ](../guide/FAQ.md)
+- Системные требования и настройки: [Рекомендуемая конфигурация](../guide/requirement.md)
+- Поиск ID и CodeName растений/зомби: [Онлайн-альманах](../almanac/)
+- Руководство по патчам и локализации: [Гайд по MOD](../guide/mod/)
+- Официальные и пользовательские уровни: [Creator's Garden](../creator-garden/)

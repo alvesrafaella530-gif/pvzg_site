@@ -24,9 +24,9 @@ actions:
     link: ./download/
     type: primary
 
-  - text: Jugar en linea
-    icon: circle-play
-    link: https://play.pvzge.com
+  - text: Nivel diario
+    icon: calendar-days
+    link: ./creator-garden/daily-level
 
   - text: Comunidad
     icon: comment
@@ -43,6 +43,11 @@ highlights:
       opacity: 0.5
       filter: brightness(60%)
     features:
+      - title: Jugar en linea
+        icon: circle-play
+        details: Juega PvZ2 Gardendless directamente en tu navegador
+        link: https://play.pvzge.com
+
       - title: Almanaque en Línea
         icon: book-atlas
         details: Aquí encontrarás a las plantas y a los zombis, sus IDs y sus nombres
@@ -53,6 +58,11 @@ highlights:
         details: Modifica tus partidas guardadas de Gardenless
         link: ./useful-tool/save-editor
 
+      - title: Asistente de descifrado
+        icon: puzzle-piece
+        details: Registra resultados, descarta respuestas o practica en el navegador
+        link: ./useful-tool/plant-decoding
+
       - title: Tutorial de MODs
         icon: toolbox
         details: Personaliza tu juego usando GE Patcher
@@ -62,4 +72,9 @@ highlights:
         icon: pen-to-square
         details: Crea y exporta niveles personalizados de Gardendless
         link: ./useful-tool/level-editor
+
+      - title: Nivel diario
+        icon: calendar-days
+        details: Consulta niveles diarios programados de la comunidad de Discord
+        link: ./creator-garden/daily-level
 ---

@@ -24,9 +24,9 @@ actions:
     link: ./download/
     type: primary
 
-  - text: 在线游玩
-    icon: circle-play
-    link: https://play.pvzge.com
+  - text: 每日关卡
+    icon: calendar-days
+    link: ./creator-garden/daily-level
 
   - text: 社区
     icon: comment
@@ -43,6 +43,11 @@ highlights:
       opacity: 0.5
       filter: brightness(60%)
     features:
+    - title: 在线游玩
+      icon: circle-play
+      details: 在浏览器中直接体验 PvZ2 Gardendless
+      link: https://play.pvzge.com
+
     - title: 在线图鉴
       icon: book-atlas
       details: 查找植物和僵尸,以及它们的 ID 和 CodeName
@@ -53,6 +58,11 @@ highlights:
       details: 修改Gardendless的游戏存档
       link: ./useful-tool/save-editor
 
+    - title: 植物解码助手
+      icon: puzzle-piece
+      details: 记录游戏反馈、智能排除答案，也可随时练习解码
+      link: ./useful-tool/plant-decoding
+
     - title: MOD教程
       icon: toolbox
       details: 使用GE Patcher自定义游戏资源
@@ -62,4 +72,9 @@ highlights:
       icon: pen-to-square
       details: 可视化编辑并导出自定义关卡
       link: ./useful-tool/level-editor
+
+    - title: 每日关卡
+      icon: calendar-days
+      details: 查看来自 Discord 社区投稿并定时更新的每日关卡
+      link: ./creator-garden/daily-level
 ---

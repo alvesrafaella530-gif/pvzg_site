@@ -24,9 +24,9 @@ actions:
     link: ./download/
     type: primary
 
-  - text: Online Play
-    icon: circle-play
-    link: https://play.pvzge.com
+  - text: Daily Level
+    icon: calendar-days
+    link: ./creator-garden/daily-level
 
   - text: Community
     icon: comment
@@ -43,6 +43,11 @@ highlights:
       opacity: 0.5
       filter: brightness(60%)
     features:
+    - title: Online Play
+      icon: circle-play
+      details: Play PvZ2 Gardendless directly in your browser
+      link: https://play.pvzge.com
+
     - title: Online Almanac
       icon: book-atlas
       details: Find plants and zombies, as well as their ID and CodeName
@@ -53,6 +58,11 @@ highlights:
       details: Modify Gardendless game saves
       link: ./useful-tool/save-editor
 
+    - title: Plant Decoding Assistant
+      icon: puzzle-piece
+      details: Record game feedback, narrow the answer, or practice in your browser
+      link: ./useful-tool/plant-decoding
+
     - title: MOD tutorial
       icon: toolbox
       details: Customize game resources using GE Patcher
@@ -62,4 +72,9 @@ highlights:
       icon: pen-to-square
       details: Build and export custom Gardendless levels
       link: ./useful-tool/level-editor
+
+    - title: Daily Level
+      icon: calendar-days
+      details: View scheduled daily levels from Discord community submissions
+      link: ./creator-garden/daily-level
 ---
