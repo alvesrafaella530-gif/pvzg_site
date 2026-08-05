@@ -10,16 +10,13 @@
         <div class="title-block">
           <div class="title-row">
             <span class="title-sun" aria-hidden="true"></span>
-            <a-typography-title :level="2" class="editor-title">{{ t('title') }}</a-typography-title>
-          </div>
-          <div class="workspace-meta">
-            <span>{{ t('summaryWaves', { count: draft.waves.length }) }}</span>
-            <span>{{ t('summaryPlacements', { count: draft.boardItems.length }) }}</span>
+            <a-typography-title :level="1" class="editor-title">{{ t('title') }}</a-typography-title>
           </div>
         </div>
         <div class="top-actions">
           <div class="top-action-row action-row-primary">
             <button
+              v-if="validationItems.length"
               type="button"
               class="validation-summary-control"
               :class="validationState"
@@ -28,6 +25,10 @@
               <span class="validation-status-dot" aria-hidden="true"></span>
               {{ t('errors', { count: validationSummary.errors }) }} / {{ t('warnings', { count: validationSummary.warnings }) }}
             </button>
+            <div v-else class="validation-summary-control success" role="status">
+              <span class="validation-status-dot" aria-hidden="true"></span>
+              {{ t('validationPassed') }}
+            </div>
             <label class="expert-mode-toggle">
               <input v-model="expertMode" type="checkbox" :aria-label="t('expertMode')" />
               <span class="expert-mode-switch" aria-hidden="true"></span>
@@ -107,26 +108,28 @@
             :translate="t"
             @select-cell="selectedCell = $event"
           />
-          <BoardEditor />
         </section>
         <section class="mobile-section-stack">
           <AssetLibrary />
         </section>
         <section class="mobile-section-stack">
-          <WaveTimeline />
+          <BoardEditor />
         </section>
         <section class="mobile-section-stack">
           <PropertyPanel />
         </section>
         <section class="mobile-section-stack">
+          <WaveTimeline />
+        </section>
+        <section v-if="validationItems.length" class="mobile-section-stack">
           <ValidationPanel />
         </section>
       </div>
 
-      <div v-if="!isMobileViewport" class="desktop-bottom">
+      <div v-if="!isMobileViewport" class="desktop-bottom" :class="{ 'without-validation': !validationItems.length }">
         <PropertyPanel class="panel seedbank-fallback-panel" />
         <WaveTimeline />
-        <ValidationPanel compact />
+        <ValidationPanel v-if="validationItems.length" compact />
       </div>
 
       <a-modal
@@ -185,9 +188,11 @@ import ObjectivesPanel from './objectives-panel';
 import BoardRulesPanel from './board-rules-panel';
 import {
   analyzeLevelCapabilities,
+  buildLevelDocument,
   buildSeedPresetPlants,
   createLevelImportSnapshot,
   getImportedObjectsByClass,
+  getLevelRootExtra,
   getUnchangedImportedLevel,
   isImportedDomainUnchanged,
   normalizePlantCodes,
@@ -216,11 +221,14 @@ import {
 } from './board-rule-codec.mjs';
 import { stageOptions } from './stage-registry.mjs';
 import {
+  collectCurrentLevelReferences,
   collectPreservedStaticWaveObjects,
+  collectWaveReferenceGraph,
   groupZombieEntries,
   groupZombiePoolReferences,
   isDetachedZombieSpawnAction,
   resizeZombiePoolGroup,
+  resolveWaveManagerContext,
   serializeZombieGroups,
   serializeZombiePoolGroups,
   setDynamicZombiesOnModuleObject,
@@ -306,7 +314,8 @@ type AddableWaveActionKind =
   | 'qigongStrike'
   | 'chiHole'
   | 'missileLocate'
-  | 'waveWarning';
+  | 'waveWarning'
+  | 'scheduler';
 type ConveyorEditorTarget =
   | { kind: 'initialPlant'; index: number }
   | { kind: 'dropCondition'; index: number }
@@ -381,6 +390,7 @@ interface WaveActionDraft {
   objclass: string;
   objdata: Record<string, any>;
   jsonText: string;
+  originalObject?: any;
   managed?: boolean;
 }
 
@@ -494,6 +504,7 @@ interface LevelDraft {
   boardRules: BoardRuleSystemDraft;
   boardItems: BoardItem[];
   waves: WaveDraft[];
+  waveSupportObjects: WaveActionDraft[];
   flagWaveInterval: number;
   flagWaveIntervalOriginal?: number;
   flagWaveIntervalDirty: boolean;
@@ -505,6 +516,8 @@ interface LevelDraft {
   maxNextWaveHealthPercentage: number;
   waveManagerModuleExtra: Record<string, any>;
   waveManagerExtra: Record<string, any>;
+  waveManagerAlias: string;
+  waveManagerReferenceOnModule: boolean;
   supportsDynamicZombies: boolean;
   hasWaveManager: boolean;
   preserveGeneratorWaves: boolean;
@@ -513,6 +526,7 @@ interface LevelDraft {
   preservedWaveManagerObject?: any;
   preservedStaticWaveObjects: any[];
   waveSystemDirty: boolean;
+  rootExtra: Record<string, any>;
   levelExtra: Record<string, any>;
   preserveBoardModules: boolean;
   preservedPlacementObjects: any[];
@@ -604,6 +618,8 @@ const selectedAsset = ref<AssetOption | null>(null);
 const selectedCell = ref<{ row: number; col: number } | null>(null);
 const selectedWaveId = ref(1);
 const newWaveActionKind = ref<AddableWaveActionKind>('tide');
+const newSchedulerChildKind = ref<AddableWaveActionKind>('storm');
+const selectedSchedulerChildAliases = ref<Record<number, string>>({});
 const newGravestoneType = ref('gravestone_egypt');
 const newGridItemSpawnType = ref('gravestone_egypt');
 const expandedWaveActionKey = ref('zombies');
@@ -780,6 +796,26 @@ const validationItems = computed<ValidationItem[]>(() => {
         });
       }
     });
+  });
+  draft.value.waveSupportObjects.forEach((action) => {
+    try {
+      JSON5.parse(action.jsonText || '{}');
+    } catch {
+      items.push({
+        type: 'error',
+        text: t('validationSupportActionJson', { action: action.objclass })
+      });
+    }
+  });
+  const knownCurrentLevelAliases = getKnownCurrentLevelAliases();
+  const missingWaveReferences = new Set<string>();
+  [...draft.value.waves.flatMap((wave) => wave.rawActions), ...draft.value.waveSupportObjects].forEach((action) => {
+    collectCurrentLevelReferences(parseActionObjdata(action)).forEach((alias: string) => {
+      if (!knownCurrentLevelAliases.has(alias)) missingWaveReferences.add(alias);
+    });
+  });
+  missingWaveReferences.forEach((alias) => {
+    items.push({ type: 'warning', text: t('validationWaveReferenceMissing', { alias }) });
   });
   if (!draft.value.conveyor.enabled && draft.value.seedMode === 'preset' && !draft.value.seedPlants.length) {
     items.push({
@@ -979,14 +1015,15 @@ function createEmptyWave(index: number, id = nextWaveId.value++): WaveDraft {
   };
 }
 
-function createRawWaveAction(alias: string, objclass: string, objdata: Record<string, any>): WaveActionDraft {
+function createRawWaveAction(alias: string, objclass: string, objdata: Record<string, any>, originalObject?: any): WaveActionDraft {
   const data = cloneJson(objdata || {});
   return {
     id: nextWaveActionId.value++,
     alias,
     objclass,
     objdata: data,
-    jsonText: stringifyObjdata(data)
+    jsonText: stringifyObjdata(data),
+    originalObject: originalObject ? cloneJson(originalObject) : undefined
   };
 }
 
@@ -1042,6 +1079,7 @@ function createDefaultDraft(): LevelDraft {
         actionOrder: [{ kind: 'zombies' }]
       }
     ],
+    waveSupportObjects: [],
     flagWaveInterval: 5,
     flagWaveIntervalDirty: true,
     firstWaveCountdown: -1,
@@ -1052,12 +1090,15 @@ function createDefaultDraft(): LevelDraft {
     maxNextWaveHealthPercentage: 0.7,
     waveManagerModuleExtra: {},
     waveManagerExtra: {},
+    waveManagerAlias: 'WaveManagerProps',
+    waveManagerReferenceOnModule: true,
     supportsDynamicZombies: true,
     hasWaveManager: true,
     preserveGeneratorWaves: false,
     preserveCustomWaveManager: false,
     preservedStaticWaveObjects: [],
     waveSystemDirty: false,
+    rootExtra: { version: 1 },
     levelExtra: {
       LevelNumber: 1,
       Loot: 'RTID(NoLoot@LevelModules)'
@@ -1077,6 +1118,8 @@ function resetDraft() {
   draft.value = createDefaultDraft();
   selectedWaveId.value = 1;
   newWaveActionKind.value = 'tide';
+  newSchedulerChildKind.value = 'storm';
+  selectedSchedulerChildAliases.value = {};
   newGravestoneType.value = 'gravestone_egypt';
   newGridItemSpawnType.value = 'gravestone_egypt';
   expandedWaveActionKey.value = 'zombies';
@@ -1689,10 +1732,9 @@ function duplicateWave(id: number) {
 
   const rawActionIdMap = new Map<number, number>();
   const rawActions = source.rawActions.map((action, actionIndex) => {
-    const clonedAction = createRawWaveAction(
-      createUniqueWaveActionAlias(`${action.alias || `Wave${sourceWaveNumber}Action${actionIndex}`}Copy${actionIndex + 1}`),
-      action.objclass,
-      parseActionObjdata(action)
+    const clonedAction = cloneRawWaveActionWithSupport(
+      action,
+      `${action.alias || `Wave${sourceWaveNumber}Action${actionIndex}`}Copy${actionIndex + 1}`
     );
     rawActionIdMap.set(action.id, clonedAction.id);
     return clonedAction;
@@ -1772,6 +1814,7 @@ function removeWave(id: number) {
   normalizeWaveNames();
   selectedWaveId.value = draft.value.waves[Math.min(removedIndex, draft.value.waves.length - 1)].id;
   expandedWaveActionKey.value = 'zombies';
+  pruneWaveSupportObjects();
 }
 
 function addZombieToWave(code: string) {
@@ -1930,10 +1973,85 @@ function createUniqueWaveActionAlias(base: string) {
     if (item.zombieActionAlias) used.add(item.zombieActionAlias);
     item.rawActions.forEach((action) => used.add(action.alias));
   });
+  draft.value.waveSupportObjects.forEach((action) => {
+    used.add(action.alias);
+    (action.originalObject?.aliases || []).forEach((alias: string) => used.add(String(alias)));
+  });
   if (!used.has(base)) return base;
   let index = 1;
   while (used.has(`${base}_${index}`)) index++;
   return `${base}_${index}`;
+}
+
+function getWaveSupportObject(alias: string) {
+  return draft.value.waveSupportObjects.find(
+    (action) => action.alias === alias || (action.originalObject?.aliases || []).includes(alias)
+  );
+}
+
+function remapCurrentLevelReferences(value: any, aliases: Map<string, string>): any {
+  if (typeof value === 'string') {
+    const alias = parseCurrentLevelAlias(value);
+    return alias && aliases.has(alias) ? `RTID(${aliases.get(alias)}@CurrentLevel)` : value;
+  }
+  if (Array.isArray(value)) return value.map((entry) => remapCurrentLevelReferences(entry, aliases));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, remapCurrentLevelReferences(entry, aliases)]));
+  }
+  return value;
+}
+
+function getReachableWaveSupportObjects(rootActions: WaveActionDraft[]) {
+  const result: WaveActionDraft[] = [];
+  const visited = new Set<string>();
+  const pending = rootActions.flatMap((action) => [...collectCurrentLevelReferences(parseActionObjdata(action))]);
+  while (pending.length) {
+    const alias = pending.shift()!;
+    if (!alias || visited.has(alias)) continue;
+    visited.add(alias);
+    const action = getWaveSupportObject(alias);
+    if (!action) continue;
+    result.push(action);
+    collectCurrentLevelReferences(parseActionObjdata(action)).forEach((reference: string) => {
+      if (!visited.has(reference)) pending.push(reference);
+    });
+  }
+  return result;
+}
+
+function pruneWaveSupportObjects() {
+  const roots = draft.value.waves.flatMap((wave) => wave.rawActions);
+  const reachable = new Set(getReachableWaveSupportObjects(roots).map((action) => action.id));
+  draft.value.waveSupportObjects = draft.value.waveSupportObjects.filter((action) => reachable.has(action.id));
+  selectedSchedulerChildAliases.value = Object.fromEntries(
+    Object.entries(selectedSchedulerChildAliases.value).filter(([, alias]) => Boolean(getWaveSupportObject(alias)))
+  );
+}
+
+function cloneRawWaveActionWithSupport(action: WaveActionDraft, aliasBase: string) {
+  const supportObjects = getReachableWaveSupportObjects([action]);
+  const aliasMap = new Map<string, string>();
+  const clones: WaveActionDraft[] = [];
+  supportObjects.forEach((support, index) => {
+    const alias = createUniqueWaveActionAlias(`${support.alias || `Event${index + 1}`}Copy`);
+    const sourceAliases = Array.isArray(support.originalObject?.aliases)
+      ? support.originalObject.aliases.map(String)
+      : [support.alias];
+    sourceAliases.forEach((sourceAlias: string) => aliasMap.set(sourceAlias, alias));
+    const clone = createRawWaveAction(alias, support.objclass, parseActionObjdata(support));
+    draft.value.waveSupportObjects.push(clone);
+    clones.push(clone);
+  });
+  clones.forEach((clone) => {
+    clone.objdata = remapCurrentLevelReferences(clone.objdata, aliasMap);
+    clone.jsonText = stringifyObjdata(clone.objdata);
+  });
+  const clonedRoot = createRawWaveAction(
+    createUniqueWaveActionAlias(aliasBase),
+    action.objclass,
+    remapCurrentLevelReferences(parseActionObjdata(action), aliasMap)
+  );
+  return clonedRoot;
 }
 
 function isPreservingConveyorActions() {
@@ -2034,6 +2152,7 @@ function removeWaveAction(wave: WaveDraft, id: number) {
   wave.rawActions = wave.rawActions.filter((action) => action.id !== id);
   wave.actionOrder = wave.actionOrder.filter((entry) => !(entry.kind === 'raw' && entry.actionId === id));
   if (expandedWaveActionKey.value === `raw:${id}`) expandedWaveActionKey.value = 'zombies';
+  pruneWaveSupportObjects();
 }
 
 function updateWaveActionJson(action: WaveActionDraft, value: string) {
@@ -2165,8 +2284,9 @@ function parseLevel(raw: any): LevelDraft {
   const seedObject = objects.find((object: any) => object?.objclass === 'SeedBankProperties');
   const conveyorObject = objects.find((object: any) => object?.objclass === 'ConveyorSeedBankProperties');
   const seed = seedObject?.objdata || {};
-  const waveManagerModule = objects.find((object: any) => object?.objclass === 'WaveManagerModuleProperties');
-  const waveManagerObject = objects.find((object: any) => object?.objclass === 'WaveManagerProperties');
+  const waveManagerContext = resolveWaveManagerContext(objects);
+  const waveManagerModule = waveManagerContext.moduleObject;
+  const waveManagerObject = waveManagerContext.managerObject;
   const waveProps = waveManagerObject?.objdata || {};
   const importedFlagWaveInterval = Math.trunc(Number(waveProps.FlagWaveInterval ?? 5));
   const flagWaveInterval = normalizeFlagWaveIntervalMagnitude(importedFlagWaveInterval, 5);
@@ -2192,6 +2312,7 @@ function parseLevel(raw: any): LevelDraft {
     'ConveyorBelt';
 
   const waveActionAliases = new Set<string>();
+  const editableWaveActionAliases = new Set<string>();
   const conveyorActionObjects: PreservedConveyorWaveAction[] = [];
   const conveyorWaveModifications: ConveyorWaveModification[] = [];
   const waves: WaveDraft[] = (Array.isArray(waveProps.Waves) ? waveProps.Waves : []).map((entryRefs: unknown, index: number) => {
@@ -2223,7 +2344,13 @@ function parseLevel(raw: any): LevelDraft {
         conveyorWaveModifications.push(...parseConveyorWaveModifications(objdata, index + 1, alias));
         wave.actionOrder.push({ kind: 'conveyor', alias });
       } else {
-        const action = createRawWaveAction(alias, String(waveObject.objclass || 'WaveActionProps'), waveObject.objdata || {});
+        editableWaveActionAliases.add(alias);
+        const action = createRawWaveAction(
+          alias,
+          String(waveObject.objclass || 'WaveActionProps'),
+          waveObject.objdata || {},
+          waveObject
+        );
         wave.rawActions.push(action);
         wave.actionOrder.push({ kind: 'raw', actionId: action.id, alias });
       }
@@ -2334,6 +2461,35 @@ function parseLevel(raw: any): LevelDraft {
   const objectives = parseObjectiveSystem(raw) as ObjectiveSystemDraft;
   const boardRules = parseBoardRuleSystem(raw) as BoardRuleSystemDraft;
   const managedObjectIndexes = new Set([...objectives.ownedObjectIndexes, ...boardRules.ownedObjectIndexes]);
+  const waveReferenceGraph = collectWaveReferenceGraph(objects, waveActionAliases);
+  const editableWaveReferenceGraph = collectWaveReferenceGraph(objects, editableWaveActionAliases);
+  const editableWaveVisitedAliases = new Set<string>(editableWaveReferenceGraph.visitedAliases);
+  const waveGraphObjectIndexes = new Set<number>(waveReferenceGraph.objectIndexes);
+  const rootWaveObjectIndexes = new Set<number>();
+  waveActionAliases.forEach((alias) => {
+    const matches = waveReferenceGraph.aliasMatches.get(alias) || [];
+    const selectedMatch = matches[matches.length - 1];
+    if (selectedMatch) rootWaveObjectIndexes.add(selectedMatch.objectIndex);
+  });
+  const waveSupportCandidates = editableWaveReferenceGraph.objectIndexes
+    .map((objectIndex: number) => {
+      const object = objects[objectIndex];
+      const aliases = Array.isArray(object?.aliases) ? object.aliases.map(String) : [];
+      const hasUniqueIncomingAlias = aliases.some(
+        (item: string) => editableWaveVisitedAliases.has(item) && waveReferenceGraph.aliasMatches.get(item)?.length === 1
+      );
+      return { objectIndex, object, aliases, alias: aliases[0], hasUniqueIncomingAlias };
+    })
+    .filter(
+      ({ aliases, alias, hasUniqueIncomingAlias }: any) =>
+        alias && hasUniqueIncomingAlias && !aliases.some((item: string) => waveActionAliases.has(item))
+    );
+  const waveSupportObjectIndexes = new Set<number>(waveSupportCandidates.map(({ objectIndex }: any) => objectIndex));
+  const editableWaveGraphObjectIndexes = new Set<number>([...rootWaveObjectIndexes, ...waveSupportObjectIndexes]);
+  const waveSupportObjects = waveSupportCandidates
+    .map(({ object, alias }: any) =>
+      createRawWaveAction(String(alias), String(object.objclass || 'WaveActionProps'), object.objdata || {}, object)
+    );
   const placementClasses = new Set(['InitialGridItemProperties', 'InitialPlantProperties', 'InitialZombieProperties', 'GravestoneProperties']);
   const preservedPlacementObjects = objects.filter((object: any) => placementClasses.has(object?.objclass)).map((object: any) => cloneJson(object));
   const supportedClasses = new Set([
@@ -2349,10 +2505,14 @@ function parseLevel(raw: any): LevelDraft {
     'GravestoneProperties'
   ]);
   const unsupportedRawObjects = objects.filter(
-    (object: any, objectIndex: number) =>
-      !managedObjectIndexes.has(objectIndex) &&
-      (isDetachedZombieSpawnAction(object, waveActionAliases) ||
-        (!supportedClasses.has(object?.objclass) && !(object?.aliases || []).some((alias: string) => waveActionAliases.has(alias))))
+    (object: any, objectIndex: number) => {
+      if (managedObjectIndexes.has(objectIndex)) return false;
+      if (waveGraphObjectIndexes.has(objectIndex)) return !editableWaveGraphObjectIndexes.has(objectIndex);
+      return (
+        isDetachedZombieSpawnAction(object, waveActionAliases) ||
+        (!supportedClasses.has(object?.objclass) && !(object?.aliases || []).some((alias: string) => waveActionAliases.has(alias)))
+      );
+    }
   );
   const seedPresetPlants = Array.isArray(seed.PresetPlantList) ? seed.PresetPlantList.map((item: any) => item.PlantType) : [];
   const seedPresetEntries = Array.isArray(seed.PresetPlantList) ? seed.PresetPlantList.map((item: any) => cloneJson(item)) : [];
@@ -2386,6 +2546,7 @@ function parseLevel(raw: any): LevelDraft {
     boardRules,
     boardItems,
     waves: waves.length ? waves : [],
+    waveSupportObjects,
     flagWaveInterval,
     flagWaveIntervalOriginal: Number.isFinite(importedFlagWaveInterval) && importedFlagWaveInterval !== 0 ? importedFlagWaveInterval : undefined,
     flagWaveIntervalDirty: false,
@@ -2407,7 +2568,10 @@ function parseLevel(raw: any): LevelDraft {
       'MinNextWaveHealthPercentage',
       'MaxNextWaveHealthPercentage'
     ]),
-    supportsDynamicZombies: supportsDynamicZombieEditing(waveManagerModule),
+    waveManagerAlias:
+      waveManagerContext.managerAlias || String(waveManagerObject?.aliases?.[0] || 'WaveManagerProps'),
+    waveManagerReferenceOnModule: waveManagerContext.referenceOwner === waveManagerModule,
+    supportsDynamicZombies: supportsDynamicZombieEditing(objects, waveManagerModule),
     hasWaveManager: !!waveManagerObject,
     preserveGeneratorWaves: !Array.isArray(waveProps.Waves) && !!waveManagerModule,
     preservedWaveManagerModule: !Array.isArray(waveProps.Waves) && waveManagerModule ? cloneJson(waveManagerModule) : undefined,
@@ -2415,6 +2579,7 @@ function parseLevel(raw: any): LevelDraft {
     preservedWaveManagerObject: preserveCustomWaveManager ? cloneJson(waveManagerObject) : undefined,
     preservedStaticWaveObjects,
     waveSystemDirty: false,
+    rootExtra: getLevelRootExtra(raw),
     levelExtra: omitKeys(level, ['Name', 'Description', 'StageModule', 'Modules', 'StartingSun', 'WrittenBy', 'WritenBy']),
     preserveBoardModules: preservedPlacementObjects.length > 0,
     preservedPlacementObjects,
@@ -2500,6 +2665,22 @@ function buildConveyorWaveObjdata(modifications: ConveyorWaveModification[]) {
   return {
     ...(add.length ? { Add: add } : {}),
     ...(remove.length ? { Remove: remove } : {})
+  };
+}
+
+function serializeWaveActionObject(action: WaveActionDraft, alias: string, objdata = parseActionObjdata(action)) {
+  const original = cloneJson(action.originalObject || {});
+  const originalPrimaryAlias = action.originalObject?.aliases?.[0];
+  return {
+    ...original,
+    aliases: [
+      alias,
+      ...(Array.isArray(original.aliases)
+        ? original.aliases.filter((item: string) => item !== alias && item !== originalPrimaryAlias)
+        : [])
+    ],
+    objclass: action.objclass,
+    objdata: cloneJson(objdata || {})
   };
 }
 
@@ -2629,13 +2810,16 @@ function serializeLevel() {
     'ConveyorBelt',
     draft.value.conveyor.alias || 'ConveyorBelt',
     'NewWaves',
-    'WaveManagerProps',
+    draft.value.waveManagerAlias,
     'InitialGridItems',
     'Gravestones',
     'FrozenPlantPlacement',
     'FrozenZombiePlacement',
     ...draft.value.preservedPlacementObjects.flatMap((object) => object?.aliases || []),
-    ...draft.value.unsupportedRawObjects.flatMap((object) => object?.aliases || [])
+    ...draft.value.unsupportedRawObjects.flatMap((object) => object?.aliases || []),
+    ...draft.value.waveSupportObjects.flatMap((action) =>
+      Array.isArray(action.originalObject?.aliases) ? action.originalObject.aliases.map(String) : [action.alias]
+    )
   ]);
   const uniqueActionAlias = (preferred: string) => {
     let alias = preferred || 'WaveAction';
@@ -2687,11 +2871,7 @@ function serializeLevel() {
       }
       const actionIndex = wave.rawActions.findIndex((item) => item.id === action.id);
       const alias = uniqueActionAlias(action.alias || `Wave${index + 1}Action${actionIndex}`);
-      waveObjects.push({
-        aliases: [alias],
-        objclass: action.objclass,
-        objdata: parseActionObjdata(action)
-      });
+      waveObjects.push(serializeWaveActionObject(action, alias));
       refs.push(`RTID(${alias}@CurrentLevel)`);
       if (rawActionKey) emittedRawActionAliases.set(rawActionKey, alias);
     };
@@ -2736,6 +2916,9 @@ function serializeLevel() {
       } else appendConveyorAction(entry);
     });
     return refs;
+  });
+  getReachableWaveSupportObjects(draft.value.waves.flatMap((wave) => wave.rawActions)).forEach((action) => {
+    waveObjects.push(serializeWaveActionObject(action, action.alias));
   });
   const gridItems = draft.value.boardItems
     .filter((item) => item.kind === 'object' && (item.exportClass || 'InitialGridItemProperties') === 'InitialGridItemProperties')
@@ -2842,10 +3025,15 @@ function serializeLevel() {
       {
         aliases: ['NewWaves'],
         objclass: 'WaveManagerModuleProperties',
-        objdata: { ...draft.value.waveManagerModuleExtra, WaveManagerProps: 'RTID(WaveManagerProps@CurrentLevel)' }
+        objdata: {
+          ...draft.value.waveManagerModuleExtra,
+          ...(draft.value.waveManagerReferenceOnModule
+            ? { WaveManagerProps: `RTID(${draft.value.waveManagerAlias}@CurrentLevel)` }
+            : {})
+        }
       },
       {
-        aliases: ['WaveManagerProps'],
+        aliases: [draft.value.waveManagerAlias],
         objclass: 'WaveManagerProperties',
         objdata: waveManagerData
       },
@@ -2889,11 +3077,7 @@ function serializeLevel() {
 
   objects.push(...draft.value.unsupportedRawObjects);
 
-  return {
-    '#comment': draft.value.name,
-    version: 1,
-    objects
-  };
+  return buildLevelDocument(draft.value.rootExtra, draft.value.name, objects);
 }
 
 function uniqueRefs(refs: string[]) {
@@ -3096,7 +3280,9 @@ const AssetLibrary = defineComponent({
             assetSearch.value = (event.target as HTMLInputElement).value;
           }
         }),
-        h('div', { class: 'asset-result-summary', 'aria-live': 'polite' }, t('assetResults', { count: currentAssetOptions.value.length })),
+        assetSearch.value.trim() || (assetTab.value === 'object' && objectCategory.value !== 'all')
+          ? h('div', { class: 'asset-result-summary', 'aria-live': 'polite' }, t('assetResults', { count: currentAssetOptions.value.length }))
+          : null,
         h(
           'div',
           { class: 'asset-list' },
@@ -3271,7 +3457,7 @@ const BoardEditor = defineComponent({
     return () =>
       h('section', { class: 'board-editor' }, [
         h('div', { class: 'board-header' }, [
-          h('div', [h('strong', t('board')), h('span', selectedAsset.value ? `${t('selected')}: ${selectedAsset.value.name}` : t('emptyCell'))]),
+          h('div', [h('strong', t('board')), selectedAsset.value ? h('span', `${t('selected')}: ${selectedAsset.value.name}`) : null]),
           h('div', { class: 'board-actions' }, [
             selectedCell.value
               ? h('button', { class: 'text-button', onClick: clearSelectedCell }, [h(DeleteOutlined), t('clearCell')])
@@ -3762,7 +3948,6 @@ function renderSeedBankControls() {
         t('seedPreset')
       )
     ]),
-    h('small', { class: 'seed-mode-hint' }, t(draft.value.seedMode === 'chooser' ? 'seedChooserHint' : 'seedPresetHint')),
     renderPlantPills('seedPlants'),
     h('div', { class: 'action-row' }, [
       h(
@@ -4057,7 +4242,6 @@ const PropertyPanel = defineComponent({
   setup() {
     return () =>
       h('aside', { class: 'property-panel-inner' }, [
-        h('div', { class: 'panel-title' }, t('propertyPanel')),
         h('div', { class: 'property-section' }, [
           h('strong', t('seedSupply')),
           renderSeedSupplyModeSelector(),
@@ -4074,6 +4258,13 @@ function getRawWaveActionLabel(action: WaveActionDraft) {
 
 function getRawWaveActionSummary(action: WaveActionDraft) {
   const data = parseActionObjdata(action);
+  if (action.objclass === 'WaveSchedulerProps') {
+    return t('actionSchedulerSummary', {
+      delay: data?.TimeBeforeFirst?.Min ?? '-',
+      repeat: data?.Repeat?.Max ?? '-',
+      count: Array.isArray(data?.Events) ? data.Events.length : 0
+    });
+  }
   if (action.objclass === 'TidalChangeWaveActionProps') {
     return t('actionTideSummary', { column: data?.TidalChange?.ChangeAmount ?? '-' });
   }
@@ -4207,6 +4398,201 @@ function renderActionRangeField(
         onInput: (event: Event) => onInput('Max', Number((event.target as HTMLInputElement).value) || 0)
       })
     ])
+  ]);
+}
+
+function getSchedulerEvents(action: WaveActionDraft) {
+  return Array.isArray(action.objdata?.Events) ? action.objdata.Events : [];
+}
+
+function getKnownCurrentLevelAliases() {
+  const aliases = new Set<string>();
+  const collect = (object: any) => (object?.aliases || []).forEach((alias: string) => aliases.add(String(alias)));
+  (importedLevelSnapshot?.source?.objects || []).forEach(collect);
+  draft.value.waves.forEach((wave) => {
+    if (wave.zombieActionAlias) aliases.add(wave.zombieActionAlias);
+    wave.rawActions.forEach((action) => aliases.add(action.alias));
+  });
+  draft.value.waveSupportObjects.forEach((action) => aliases.add(action.alias));
+  draft.value.unsupportedRawObjects.forEach(collect);
+  draft.value.preservedPlacementObjects.forEach(collect);
+  aliases.add('WaveManager');
+  aliases.add('WaveManagerModule');
+  if (draft.value.hasSeedBank) aliases.add('SeedBank');
+  if (draft.value.conveyor.enabled) aliases.add(draft.value.conveyor.alias || 'ConveyorBelt');
+  return aliases;
+}
+
+function getSchedulerEventInfo(reference: any, index: number) {
+  const alias = typeof reference === 'string' ? parseCurrentLevelAlias(reference) : '';
+  const child = alias ? getWaveSupportObject(alias) : undefined;
+  const known = Boolean(alias && getKnownCurrentLevelAliases().has(alias));
+  return { reference, index, alias, child, known };
+}
+
+function updateSchedulerRange(action: WaveActionDraft, key: 'TimeBeforeFirst' | 'TimeBetween' | 'Repeat', bound: 'Min' | 'Max', value: number) {
+  updateWaveActionData(action, (objdata) => {
+    objdata[key] = { ...(objdata[key] || {}), [bound]: Math.max(0, value) };
+  });
+}
+
+function addSchedulerEvent(action: WaveActionDraft, kind: AddableWaveActionKind) {
+  const waveIndex = Math.max(1, draft.value.waves.findIndex((wave) => wave.id === selectedWaveId.value) + 1);
+  const template = createWaveActionTemplate(kind, waveIndex);
+  if (!template) return;
+  markWaveSystemEdited();
+  const child = createRawWaveAction(createUniqueWaveActionAlias(template.alias), template.objclass, template.objdata);
+  draft.value.waveSupportObjects.push(child);
+  updateWaveActionData(action, (objdata) => {
+    objdata.Events = [...(Array.isArray(objdata.Events) ? objdata.Events : []), `RTID(${child.alias}@CurrentLevel)`];
+  });
+  selectedSchedulerChildAliases.value[action.id] = child.alias;
+}
+
+function moveSchedulerEvent(action: WaveActionDraft, index: number, direction: -1 | 1) {
+  const events = getSchedulerEvents(action);
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= events.length) return;
+  updateWaveActionData(action, (objdata) => {
+    const next = [...events];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    objdata.Events = next;
+  });
+}
+
+function removeSchedulerEvent(action: WaveActionDraft, index: number) {
+  const removedAlias = parseCurrentLevelAlias(String(getSchedulerEvents(action)[index] || ''));
+  updateWaveActionData(action, (objdata) => {
+    objdata.Events = getSchedulerEvents(action).filter((_, eventIndex) => eventIndex !== index);
+  });
+  if (selectedSchedulerChildAliases.value[action.id] === removedAlias) {
+    const nextReference = getSchedulerEvents(action)[Math.min(index, Math.max(0, getSchedulerEvents(action).length - 1))];
+    selectedSchedulerChildAliases.value[action.id] = parseCurrentLevelAlias(String(nextReference || ''));
+  }
+  pruneWaveSupportObjects();
+}
+
+function renderSchedulerChildEditor(
+  info: ReturnType<typeof getSchedulerEventInfo>,
+  schedulerPath: Set<number>
+) {
+  if (!info.alias) {
+    return h('small', { class: 'scheduler-reference-state warning' }, t('schedulerInvalidEvent'));
+  }
+  if (!info.child) {
+    return h('small', { class: ['scheduler-reference-state', info.known ? 'preserved' : 'warning'] }, [
+      h('code', info.alias),
+      t(info.known ? 'schedulerExternalEvent' : 'schedulerMissingEvent')
+    ]);
+  }
+  if (schedulerPath.has(info.child.id)) {
+    return h('small', { class: 'scheduler-reference-state preserved' }, [
+      h('code', info.child.alias),
+      t('schedulerCircularEvent')
+    ]);
+  }
+  const nextPath = new Set(schedulerPath).add(info.child.id);
+  const knownFields = renderKnownWaveActionFields(info.child, nextPath);
+  const zombiePool = renderEventZombiePoolEditor(info.child);
+  return h('div', { class: 'scheduler-child-editor' }, [
+    knownFields || (!expertMode.value ? h('small', { class: 'scheduler-reference-state preserved' }, t('schedulerPreservedEvent')) : null),
+    zombiePool,
+    expertMode.value
+      ? h('label', { class: 'raw-json-field' }, [
+          h('span', t('rawJson')),
+          h('textarea', {
+            value: info.child.jsonText,
+            spellcheck: 'false',
+            onInput: (event: Event) => updateWaveActionJson(info.child!, (event.target as HTMLTextAreaElement).value)
+          })
+        ])
+      : null,
+    h('code', { class: 'scheduler-child-alias' }, info.child.alias)
+  ]);
+}
+
+function renderSchedulerActionFields(action: WaveActionDraft, schedulerPath = new Set<number>()) {
+  const path = new Set(schedulerPath).add(action.id);
+  const events = getSchedulerEvents(action);
+  const infos = events.map((reference, index) => getSchedulerEventInfo(reference, index));
+  const selectedAlias = selectedSchedulerChildAliases.value[action.id] || infos.find((info) => info.alias)?.alias || '';
+  const selectedInfo = infos.find((info) => info.alias === selectedAlias) || infos[0];
+  const data = action.objdata || {};
+  return h('div', { class: 'scheduler-editor' }, [
+    h('div', { class: 'scheduler-timing-grid' }, [
+      renderActionRangeField('schedulerFirstDelay', data.TimeBeforeFirst, (bound, value) => updateSchedulerRange(action, 'TimeBeforeFirst', bound, value)),
+      renderActionRangeField('schedulerInterval', data.TimeBetween, (bound, value) => updateSchedulerRange(action, 'TimeBetween', bound, value)),
+      renderActionRangeField('schedulerRepeat', data.Repeat, (bound, value) => updateSchedulerRange(action, 'Repeat', bound, value))
+    ]),
+    h('div', { class: 'scheduler-options' }, [
+      h('label', { class: 'check-row' }, [
+        h('input', {
+          type: 'checkbox',
+          checked: Boolean(data.RewardWhenEnded),
+          onChange: (event: Event) => updateWaveActionData(action, (objdata) => {
+            objdata.RewardWhenEnded = (event.target as HTMLInputElement).checked;
+          })
+        }),
+        t('schedulerRewardWhenEnded')
+      ]),
+      h('label', { class: 'check-row' }, [
+        h('input', {
+          type: 'checkbox',
+          checked: Boolean(data.SuppressRewardState),
+          onChange: (event: Event) => updateWaveActionData(action, (objdata) => {
+            objdata.SuppressRewardState = (event.target as HTMLInputElement).checked;
+          })
+        }),
+        t('schedulerSuppressReward')
+      ]),
+      Object.prototype.hasOwnProperty.call(data, 'EndingWave') || expertMode.value
+        ? renderActionNumberField('schedulerEndingWave', data.EndingWave, (value) => updateWaveActionData(action, (objdata) => {
+            objdata.EndingWave = Math.max(0, Math.round(value));
+          }))
+        : null
+    ]),
+    h('div', { class: 'scheduler-events' }, [
+      h('div', { class: 'scheduler-events-heading' }, [
+        h('strong', t('schedulerEvents')),
+        h('span', events.length)
+      ]),
+      infos.length
+        ? h('div', { class: 'scheduler-event-list' }, infos.map((info) => {
+            const active = info === selectedInfo;
+            const label = info.child ? getRawWaveActionLabel(info.child) : info.alias || t('schedulerInvalidEvent');
+            const summary = info.child
+              ? getRawWaveActionSummary(info.child)
+              : t(info.known ? 'schedulerExternalEvent' : info.alias ? 'schedulerMissingEvent' : 'schedulerPreservedEvent');
+            return h('div', { class: ['scheduler-event-row', active ? 'active' : '', !info.child ? 'preserved' : ''] }, [
+              h('button', {
+                type: 'button',
+                class: 'scheduler-event-main',
+                onClick: () => { selectedSchedulerChildAliases.value[action.id] = info.alias; }
+              }, [
+                h('span', { class: 'scheduler-event-index' }, info.index + 1),
+                h('span', { class: 'scheduler-event-copy' }, [h('strong', label), h('small', summary)])
+              ]),
+              h('div', { class: 'scheduler-event-actions' }, [
+                h('button', { type: 'button', disabled: info.index === 0, title: t('moveEarlier'), 'aria-label': t('moveEarlier'), onClick: () => moveSchedulerEvent(action, info.index, -1) }, '↑'),
+                h('button', { type: 'button', disabled: info.index === infos.length - 1, title: t('moveLater'), 'aria-label': t('moveLater'), onClick: () => moveSchedulerEvent(action, info.index, 1) }, '↓'),
+                h('button', { type: 'button', class: 'danger', title: t('remove'), 'aria-label': t('remove'), onClick: () => removeSchedulerEvent(action, info.index) }, h(DeleteOutlined))
+              ])
+            ]);
+          }))
+        : h('small', { class: 'seed-mode-hint' }, t('schedulerEmpty')),
+      h('div', { class: 'scheduler-add-controls' }, [
+        h('select', {
+          value: newSchedulerChildKind.value,
+          'aria-label': t('waveEventType'),
+          onChange: (event: Event) => { newSchedulerChildKind.value = (event.target as HTMLSelectElement).value as AddableWaveActionKind; }
+        }, ADDABLE_WAVE_ACTIONS.map((definition: any) => h('option', { value: definition.kind }, t(definition.labelKey)))),
+        h('button', { type: 'button', class: 'add-button small', onClick: () => addSchedulerEvent(action, newSchedulerChildKind.value) }, [
+          h(PlusOutlined),
+          t('schedulerAddEvent')
+        ])
+      ])
+    ]),
+    selectedInfo ? renderSchedulerChildEditor(selectedInfo, path) : null
   ]);
 }
 
@@ -4933,8 +5319,9 @@ function renderWaveWarningActionFields(action: WaveActionDraft) {
   ]);
 }
 
-function renderKnownWaveActionFields(action: WaveActionDraft) {
+function renderKnownWaveActionFields(action: WaveActionDraft, schedulerPath = new Set<number>()) {
   const data = action.objdata || {};
+  if (action.objclass === 'WaveSchedulerProps') return renderSchedulerActionFields(action, schedulerPath);
   if (action.objclass === 'TidalChangeWaveActionProps') {
     return h('div', { class: 'wave-action-field-grid' }, [
       renderActionNumberField('tideColumn', data?.TidalChange?.ChangeAmount, (value) => {
@@ -5857,6 +6244,10 @@ body:has(.level-editor-shell) {
   overflow-x: hidden;
 }
 
+main#main-content:has(.level-editor-shell) > .vp-page-title {
+  display: none;
+}
+
 .level-editor-shell,
 .level-editor-shell *,
 .level-editor-shell *::before,
@@ -5882,7 +6273,9 @@ body:has(.level-editor-shell) {
   margin-bottom: 2rem;
   margin-left: calc((100% - var(--editor-shell-width)) / 2);
   color: var(--editor-text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Noto Sans SC", "Segoe UI", sans-serif;
   font-size: 0.95rem;
+  font-optical-sizing: auto;
   line-height: 1.45;
   overflow-x: clip;
   overflow-anchor: none;
@@ -5905,12 +6298,12 @@ body:has(.level-editor-shell) {
   align-items: center;
   justify-content: space-between;
   min-width: 0;
-  padding: 1.05rem 1.15rem;
+  padding: 0.9rem 1rem;
   border: 1px solid var(--editor-border);
   border-radius: 16px;
   background: color-mix(in srgb, var(--editor-panel-raised) 92%, transparent);
-  box-shadow: 0 12px 34px color-mix(in srgb, #172912 10%, transparent);
-  backdrop-filter: blur(18px) saturate(1.15);
+  box-shadow: 0 10px 28px color-mix(in srgb, #172912 9%, transparent);
+  backdrop-filter: blur(16px) saturate(1.12);
 }
 
 .import-capability-strip {
@@ -5964,33 +6357,15 @@ body:has(.level-editor-shell) {
 }
 
 .editor-title {
-  margin: 0 0 0.25rem !important;
+  margin: 0 !important;
   font-family: 'pvzgeFontEN', 'pvzgFont', 'Noto Sans SC', sans-serif !important;
+  font-size: clamp(1.55rem, 2.2vw, 2.1rem) !important;
   line-height: 1.2 !important;
 }
 
 .title-block {
   min-width: 0;
   max-width: 34rem;
-}
-
-.workspace-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-top: 0.65rem;
-}
-
-.workspace-meta span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.55rem;
-  padding: 0.1rem 0.48rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--editor-accent) 9%, transparent);
-  color: var(--editor-muted);
-  font-size: 0.74rem;
-  font-weight: 700;
 }
 
 .top-actions {
@@ -6026,6 +6401,10 @@ body:has(.level-editor-shell) {
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
+}
+
+.validation-summary-control.success[role='status'] {
+  cursor: default;
 }
 
 .validation-status-dot {
@@ -6128,6 +6507,19 @@ body:has(.level-editor-shell) {
   outline-offset: 2px;
 }
 
+.level-editor-shell button,
+.level-editor-shell summary,
+.level-editor-shell .expert-mode-toggle {
+  touch-action: manipulation;
+}
+
+.level-editor-shell button:not(:disabled):active,
+.level-editor-shell summary:active,
+.level-editor-shell .expert-mode-toggle:active {
+  transform: scale(0.98);
+  opacity: 0.88;
+}
+
 .mobile-layout {
   display: none;
 }
@@ -6155,9 +6547,13 @@ body:has(.level-editor-shell) {
 }
 
 .panel,
-.board-panel,
 .desktop-bottom {
-  box-shadow: 0 8px 24px color-mix(in srgb, #172912 7%, transparent);
+  box-shadow: 0 2px 10px color-mix(in srgb, #172912 5%, transparent);
+}
+
+.board-panel {
+  background: var(--editor-panel-raised);
+  box-shadow: 0 10px 26px color-mix(in srgb, #172912 8%, transparent);
 }
 
 .asset-library,
@@ -6267,16 +6663,10 @@ body:has(.level-editor-shell) {
   background: color-mix(in srgb, var(--editor-accent) 14%, transparent);
 }
 
-.objective-tabs small,
-.objective-empty {
+.objective-tabs small {
   color: var(--editor-muted);
   font-size: 0.7rem;
   font-weight: 600;
-}
-
-.objective-empty {
-  display: block;
-  margin-top: 0.55rem;
 }
 
 .objective-inspector {
@@ -7785,6 +8175,10 @@ body:has(.level-editor-shell) {
   margin-top: 0.75rem;
 }
 
+.desktop-bottom.without-validation {
+  grid-template-columns: 1fr;
+}
+
 .seedbank-fallback-panel {
   display: none;
 }
@@ -8225,6 +8619,195 @@ body:has(.level-editor-shell) {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.6rem;
+}
+
+.scheduler-editor,
+.scheduler-events,
+.scheduler-child-editor {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.scheduler-timing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.scheduler-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  align-items: end;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--editor-border) 72%, transparent);
+  color: var(--editor-muted);
+  font-size: 0.76rem;
+}
+
+.scheduler-options .field-row {
+  min-width: 8rem;
+  margin-left: auto;
+}
+
+.scheduler-events-heading {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.scheduler-events-heading strong {
+  font-size: 0.82rem;
+}
+
+.scheduler-events-heading span {
+  display: grid;
+  min-width: 1.35rem;
+  min-height: 1.35rem;
+  padding: 0 0.35rem;
+  place-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--editor-accent) 12%, transparent);
+  color: var(--editor-accent-strong);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.scheduler-event-list {
+  border-top: 1px solid var(--editor-border);
+  border-bottom: 1px solid var(--editor-border);
+}
+
+.scheduler-event-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-width: 0;
+}
+
+.scheduler-event-row + .scheduler-event-row {
+  border-top: 1px solid color-mix(in srgb, var(--editor-border) 65%, transparent);
+}
+
+.scheduler-event-row.active {
+  background: color-mix(in srgb, var(--editor-accent) 7%, transparent);
+}
+
+.scheduler-event-row.preserved {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--editor-sun) 12%, transparent), transparent 42%);
+}
+
+.scheduler-event-main {
+  display: grid;
+  grid-template-columns: 1.65rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: center;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0.4rem 0.5rem;
+  border: 0;
+  background: transparent;
+  color: var(--editor-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.scheduler-event-index {
+  color: var(--editor-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: center;
+}
+
+.scheduler-event-copy {
+  display: grid;
+  min-width: 0;
+}
+
+.scheduler-event-copy strong,
+.scheduler-event-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduler-event-copy small {
+  color: var(--editor-muted);
+  font-size: 0.7rem;
+}
+
+.scheduler-event-actions {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+  padding-right: 0.25rem;
+}
+
+.scheduler-event-actions button {
+  display: grid;
+  width: 2rem;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--editor-muted);
+  cursor: pointer;
+}
+
+.scheduler-event-actions button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.scheduler-event-actions button.danger {
+  color: #c74747;
+}
+
+.scheduler-add-controls {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.scheduler-add-controls select {
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: 0.3rem 0.45rem;
+  border: 1px solid var(--editor-border);
+  border-radius: 8px;
+  background: var(--vp-c-bg);
+  color: var(--editor-text);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.scheduler-child-editor {
+  padding: 0.65rem 0 0.15rem 0.75rem;
+  border-left: 2px solid color-mix(in srgb, var(--editor-accent) 38%, var(--editor-border));
+}
+
+.scheduler-child-alias,
+.scheduler-reference-state code {
+  overflow: hidden;
+  color: var(--editor-muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scheduler-reference-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+  color: var(--editor-muted);
+}
+
+.scheduler-reference-state.warning {
+  color: #a87500;
 }
 
 .wave-zombie-type-field {
@@ -9111,12 +9694,25 @@ body:has(.level-editor-shell) {
   }
 
   .top-action-row {
-    justify-content: flex-start;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: stretch;
   }
 
   .expert-mode-toggle {
-    flex: 1 1 13rem;
-    max-width: 100%;
+    max-width: none;
+  }
+
+  .top-action-row > .ant-btn,
+  .top-action-row .ant-upload,
+  .top-action-row .ant-upload .ant-btn,
+  .expert-mode-toggle,
+  .validation-summary-control {
+    width: 100%;
+  }
+
+  .action-row-export > * {
+    grid-column: span 2;
   }
 }
 
@@ -9158,6 +9754,10 @@ body:has(.level-editor-shell) {
     width: 100%;
   }
 
+  .action-row-export > * {
+    grid-column: auto;
+  }
+
   .top-action-row > .ant-btn,
   .top-action-row .ant-upload,
   .top-action-row .ant-upload .ant-btn,
@@ -9169,13 +9769,8 @@ body:has(.level-editor-shell) {
   }
 
   .validation-summary-control {
-    grid-column: 1 / -1;
     justify-content: center;
     white-space: normal;
-  }
-
-  .action-row-primary .expert-mode-toggle {
-    grid-column: 1 / -1;
   }
 
   .mobile-layout {
@@ -9359,6 +9954,45 @@ body:has(.level-editor-shell) {
 
   .wave-action-field-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scheduler-timing-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scheduler-options {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scheduler-options .check-row,
+  .scheduler-options .field-row {
+    min-height: 2.75rem;
+    margin-left: 0;
+  }
+
+  .scheduler-event-main {
+    min-height: 3.25rem;
+    padding-left: 0.25rem;
+  }
+
+  .scheduler-event-actions button {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .scheduler-add-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scheduler-add-controls select,
+  .scheduler-add-controls button {
+    min-height: 2.75rem;
+  }
+
+  .scheduler-child-editor {
+    padding-left: 0.55rem;
   }
 
   .wave-zombie-type-field {
@@ -9561,6 +10195,22 @@ body:has(.level-editor-shell) {
   .level-editor-modal-root * {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .editor-topbar {
+    background: var(--editor-panel-raised);
+    backdrop-filter: none;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .editor-topbar,
+  .panel,
+  .board-panel,
+  .desktop-bottom {
+    border-color: currentColor;
   }
 }
 </style>

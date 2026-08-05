@@ -108,15 +108,110 @@ export function setDynamicZombiesOnModuleObject(moduleObject, slots) {
   return result;
 }
 
+function parseCurrentLevelReference(value) {
+  return /^RTID\((.+)@CurrentLevel\)$/.exec(String(value || ''))?.[1] || '';
+}
+
+export function resolveWaveManagerContext(objects, preferredModuleObject) {
+  const levelObjects = Array.isArray(objects) ? objects : [];
+  const moduleObject =
+    preferredModuleObject ||
+    levelObjects.find(
+      (object) => object?.objclass === 'WaveManagerModuleProperties' && Object.hasOwn(object?.objdata || {}, 'DynamicZombies')
+    ) ||
+    levelObjects.find((object) => object?.objclass === 'WaveManagerModuleProperties');
+  const managersByAlias = new Map();
+
+  levelObjects.forEach((object) => {
+    if (object?.objclass !== 'WaveManagerProperties') return;
+    (object?.aliases || []).forEach((alias) => {
+      if (!managersByAlias.has(alias)) managersByAlias.set(alias, object);
+    });
+  });
+
+  const referenceOwners = [moduleObject, ...levelObjects.filter((object) => object !== moduleObject)];
+  for (const ownerObject of referenceOwners) {
+    const reference = ownerObject?.objdata?.WaveManagerProps;
+    const managerAlias = parseCurrentLevelReference(reference);
+    const managerObject = managersByAlias.get(managerAlias);
+    if (managerObject) {
+      return { moduleObject, managerObject, referenceOwner: ownerObject, managerAlias, reference };
+    }
+  }
+
+  return {
+    moduleObject,
+    managerObject: levelObjects.find((object) => object?.objclass === 'WaveManagerProperties'),
+    referenceOwner: undefined,
+    managerAlias: '',
+    reference: undefined
+  };
+}
+
+export function collectCurrentLevelReferences(value, output = new Set()) {
+  if (typeof value === 'string') {
+    const alias = /^RTID\((.+)@CurrentLevel\)$/.exec(value)?.[1];
+    if (alias) output.add(alias);
+    return output;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry) => collectCurrentLevelReferences(entry, output));
+    return output;
+  }
+  if (value && typeof value === 'object') {
+    Object.values(value).forEach((entry) => collectCurrentLevelReferences(entry, output));
+  }
+  return output;
+}
+
+export function collectWaveReferenceGraph(objects, rootAliases) {
+  const aliases = new Map();
+  (objects || []).forEach((object, objectIndex) => {
+    (object?.aliases || []).forEach((alias) => {
+      const matches = aliases.get(alias) || [];
+      matches.push({ object, objectIndex });
+      aliases.set(alias, matches);
+    });
+  });
+
+  const pending = [...new Set(rootAliases || [])];
+  const visitedAliases = new Set();
+  const objectIndexes = new Set();
+  const unresolvedAliases = new Set();
+  const ambiguousAliases = new Set();
+
+  while (pending.length) {
+    const alias = pending.shift();
+    if (!alias || visitedAliases.has(alias)) continue;
+    visitedAliases.add(alias);
+    const matches = aliases.get(alias) || [];
+    if (!matches.length) {
+      unresolvedAliases.add(alias);
+      continue;
+    }
+    if (matches.length > 1) ambiguousAliases.add(alias);
+    matches.forEach(({ object, objectIndex }) => {
+      objectIndexes.add(objectIndex);
+      collectCurrentLevelReferences(object?.objdata).forEach((reference) => {
+        if (!visitedAliases.has(reference)) pending.push(reference);
+      });
+    });
+  }
+
+  return {
+    objectIndexes: [...objectIndexes].sort((left, right) => left - right),
+    visitedAliases: [...visitedAliases],
+    unresolvedAliases: [...unresolvedAliases],
+    ambiguousAliases: [...ambiguousAliases],
+    aliasMatches: aliases
+  };
+}
+
 export function collectPreservedStaticWaveObjects(objects, moduleObject, managerObject, referencedAliases) {
-  const aliases = new Set(referencedAliases || []);
+  const graph = collectWaveReferenceGraph(objects, referencedAliases);
+  const objectIndexes = new Set(graph.objectIndexes);
   return (objects || [])
-    .filter(
-      (object) =>
-        object === moduleObject ||
-        object === managerObject ||
-        (object?.aliases || []).some((alias) => aliases.has(alias))
-    )
+    .filter((object, objectIndex) => object === moduleObject || object === managerObject || objectIndexes.has(objectIndex))
     .map((object) => cloneJson(object));
 }
 
@@ -126,6 +221,7 @@ export function isDetachedZombieSpawnAction(object, referencedAliases) {
   return !(object?.aliases || []).some((alias) => aliases.has(alias));
 }
 
-export function supportsDynamicZombieEditing(moduleObject) {
-  return Boolean(moduleObject?.objdata?.WaveManagerProps);
+export function supportsDynamicZombieEditing(objects, moduleObject) {
+  const context = resolveWaveManagerContext(objects, moduleObject);
+  return Boolean(context.moduleObject && context.referenceOwner && context.managerObject);
 }
