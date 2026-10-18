@@ -2,24 +2,9 @@
     "Name": "PvZ2_Prerelease_MGP",
     "Version": "v0.15.0",
     "InsideVersion": "0.15.0",
-    "Updates": [
-        {
-            "en": "Modified Recommended & Challenging Card Decks for Epic Levels (by the community).",
-            "zh": "调整部分史诗关卡推荐卡组和挑战卡组（由社区制作）。"
-        },
-        {
-            "en": "Added Merged Mega Gatling Peas.",
-            "zh": "加入超级机枪射手融合配方。"
-        }
-    ],
-    "NewFeatures": [
-        "调整部分史诗关卡推荐卡组和挑战卡组（由社区制作）。",
-        "加入超级机枪射手融合配方。"
-    ],
-    "EnNewFeatures": [
-        "Modified Recommended & Challenging Card Decks for Epic Levels (by the community).",
-        "Added Merged Mega Gatling Peas."
-    ],
+    "Updates": [],
+    "NewFeatures": [],
+    "EnNewFeatures": [],
     "Download": {
         "Quark": "https://pan.quark.cn/s/951455d68f33",
         "QuarkZip": "https://pan.quark.cn/s/171dac7cd707",
