@@ -1,0 +1,42 @@
+{
+    "Name": "PvZ2_Prerelease_ModernFog",
+    "Version": "v0.16.0",
+    "InsideVersion": "0.16.0",
+    "Updates": [
+        {
+            "en": "Added Lily of Alchemy.",
+            "zh": "加入炼金百合。"
+        },
+        {
+            "en": "Added fog in pool.",
+            "zh": "在泳池中加入雾效。"
+        },
+        {
+            "en": "Added Steam Ages map.",
+            "zh": "加入蒸汽时代地图。"
+        }
+    ],
+    "NewFeatures": [
+        "加入炼金百合。",
+        "在泳池中加入雾效。",
+        "加入蒸汽时代地图。"
+    ],
+    "EnNewFeatures": [
+        "Added Lily of Alchemy.",
+        "Added fog in pool.",
+        "Added Steam Ages map."
+    ],
+    "Download": {
+        "Quark": "https://pan.quark.cn/s/951455d68f33",
+        "QuarkZip": "https://pan.quark.cn/s/171dac7cd707",
+        "Baidu": "https://pan.baidu.com/s/1QrwYFZk_W2wlJniE5TyA2Q?pwd=pvz2",
+        "Pan123": "https://1835324387.share.123pan.cn/123pan/xUemTd-3MIUh",
+        "Github": "https://github.com/Gzh0821/pvzg_site/releases/tag/0.16.0",
+        "Storage": "https://storage.pvzge.com/pvzge-0.16.0.zip",
+        "StorageLite": "https://storage.pvzge.com/pvzge-lite-0.16.0.zip"
+    },
+    "MacOSDownload": {
+        "Storage": "https://storage.pvzge.com/macos/pvzge-macos-0.16.0.zip",
+        "StorageLite": "https://storage.pvzge.com/macos/pvzge-lite-macos-0.16.0.zip"
+    }
+}
