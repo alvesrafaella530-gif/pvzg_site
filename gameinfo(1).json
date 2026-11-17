@@ -1,0 +1,36 @@
+{
+    "Name": "PvZ2_Prerelease_GitHubLevels",
+    "Version": "v0.17.0",
+    "InsideVersion": "0.17.0",
+    "Updates": [
+        {
+            "zh": "新增 Sweet Pea、Puffball 和 Bramble Bush。",
+            "en": "Added Sweet Pea, Puffball, and Bramble Bush."
+        },
+        {
+            "zh": "新增点唱机。",
+            "en": "Added Jukebox."
+        }
+    ],
+    "NewFeatures": [
+        "新增 Sweet Pea、Puffball 和 Bramble Bush。",
+        "新增点唱机。"
+    ],
+    "EnNewFeatures": [
+        "Added Sweet Pea, Puffball, and Bramble Bush.",
+        "Added Jukebox."
+    ],
+    "Download": {
+        "Quark": "https://pan.quark.cn/s/b4841889eb10",
+        "QuarkZip": "https://pan.quark.cn/s/b4841889eb10",
+        "Baidu": "https://pan.baidu.com/s/1_wP66889wfWVczuCTbEfMg?pwd=pvz2",
+        "Pan123": "https://1835324387.share.123pan.cn/123pan/xUemTd-aTRUh",
+        "Github": "https://github.com/Gzh0821/pvzg_site/releases/tag/0.17.0",
+        "Storage": "https://storage.pvzge.com/pvzge-0.17.0.zip",
+        "StorageLite": "https://storage.pvzge.com/pvzge-lite-0.17.0.zip"
+    },
+    "MacOSDownload": {
+        "Storage": "https://storage.pvzge.com/macos/pvzge-macos-0.17.0.zip",
+        "StorageLite": "https://storage.pvzge.com/macos/pvzge-lite-macos-0.17.0.zip"
+    }
+}
