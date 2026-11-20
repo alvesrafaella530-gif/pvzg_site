@@ -84,26 +84,69 @@ iframe.youtube-video {
     max-width: 100%;
 }
 
-// Halloween navbar
+// Vice City sunset palette
+.vp-project-home {
+    --hero-tint: 255 242 235;
+    --hero-title-colors: #783311, #812451 52%, #63194e;
+
+    .vp-feature-bg {
+        opacity: 0.28;
+    }
+}
+
+[data-theme="dark"] .vp-project-home {
+    --hero-tint: 23 14 43;
+    --hero-title-colors: #ffdf80, #f5899b 52%, #e963c7;
+
+    .vp-hero-mask {
+        filter: brightness(68%);
+    }
+
+    .vp-feature-bg {
+        opacity: 0.45;
+        filter: brightness(60%);
+    }
+}
+
+.vp-hero-info-wrapper.hero-fullscreen {
+    background-color: rgb(var(--hero-tint));
+
+    .vp-hero-mask {
+        opacity: 0.84;
+    }
+
+    .vp-hero-mask::after {
+        background: radial-gradient(ellipse at center, rgb(var(--hero-tint) / 92%), rgb(var(--hero-tint) / 65%) 36%, transparent 74%) center / cover fixed;
+    }
+
+    #main-title {
+        width: fit-content;
+        margin-inline: auto;
+        background-image: linear-gradient(105deg, var(--hero-title-colors));
+    }
+
+    #main-description {
+        color: var(--vp-c-text);
+    }
+
+    .vp-hero-action.primary {
+        background: #ffacaa;
+        color: #31223e;
+
+        &:hover {
+            background: #ffcfad;
+        }
+    }
+}
 
 .vp-navbar {
-    background:
-        linear-gradient(90deg,
-            rgba(132, 87, 170, 0.24) 0%,
-            rgba(239, 151, 57, 0.3) 50%,
-            rgba(132, 87, 170, 0.24) 100%),
-        rgba(252, 247, 242, 0.96);
-    box-shadow: 0 1px 0 rgba(112, 63, 139, 0.24);
+    background: linear-gradient(105deg, #fff1df, #ffe4ea 53%, #eee6fa);
+    box-shadow: 0 1px 0 rgb(91 39 66 / 18%);
 }
 
 [data-theme="dark"] .vp-navbar {
-    background:
-        linear-gradient(90deg,
-            rgba(102, 57, 143, 0.42) 0%,
-            rgba(170, 85, 24, 0.3) 50%,
-            rgba(102, 57, 143, 0.42) 100%),
-        #191120;
-    box-shadow: 0 1px 0 rgba(242, 163, 77, 0.3);
+    background: linear-gradient(105deg, #2f2e52, #39253e 53%, #251229);
+    box-shadow: 0 1px 0 rgb(245 137 155 / 24%);
 }
 
 .vp-navbar::before {
@@ -112,8 +155,7 @@ iframe.youtube-video {
     inset-inline: 0;
     inset-block-end: 0;
     height: 2px;
-    background: linear-gradient(90deg, #9361b5, #ed963b, #9361b5);
-    opacity: 0.8;
+    background: linear-gradient(90deg, #ffdf80, #f4717c, #e963c7, #9b89f5);
     pointer-events: none;
 }
 

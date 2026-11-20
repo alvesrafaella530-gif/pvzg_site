@@ -10,11 +10,9 @@ heroImageStyle:
   box-shadow: "0 0 12px rgba(0, 0, 0, 0.2)"
   backdrop-filter: "blur(10px)"
   background: "rgba(255, 255, 255, 0.1)"
-bgImage: /assets/image/background-halloween.webp
+bgImage: /assets/image/background-need-for-speed.webp
 bgImageStyle:
   background-attachment: fixed
-  filter: brightness(60%)
-  opacity: 0.5 
 heroFullScreen: true
 heroText: PvZ2 Gardendless
 tagline: 完全重制的全桌面平台PvZ2
@@ -37,11 +35,9 @@ actions:
     link: ./contribution/Sponsor
 
 highlights:
-  - bgImage: /assets/image/background-halloween.webp
+  - bgImage: /assets/image/background-need-for-speed.webp
     bgImageStyle:
       background-attachment: fixed
-      opacity: 0.5
-      filter: brightness(60%)
     features:
     - title: 创意苗圃 (Beta)
       icon: seedling
